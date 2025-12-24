@@ -19,7 +19,7 @@ export const fetchPolymarketData = async (category) => {
     };
 
     if (category === 'all') {
-        const categoriesToFetch = ['trending', ...Object.keys(tagMap)];
+        const categoriesToFetch = Object.keys(tagMap);
         try {
             const allResults = await Promise.all(
                 categoriesToFetch.map(cat => fetchPolymarketData(cat))
@@ -72,6 +72,7 @@ export const filterMarkets = (events, timeframe, range) => {
         '1h': 'oneHourPriceChange',
         '3h': 'oneDayPriceChange', // Approximation
         '6h': 'oneDayPriceChange', // Approximation
+        '12h': 'oneDayPriceChange', // Approximation
         '24h': 'oneDayPriceChange',
         '7d': 'oneWeekPriceChange'
     };
