@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.MODE === 'production'
+const BASE_URL = import.meta.env.PROD
     ? 'https://gamma-api.polymarket.com'
     : '/gamma';
 
@@ -45,8 +45,13 @@ export const fetchPolymarketData = async (category) => {
     }
 
     try {
-        const response = await fetch(url);
+        const fetchUrl = import.meta.env.PROD
+            ? `https://corsproxy.io/?${encodeURIComponent(url)}`
+            : url;
+
+        const response = await fetch(fetchUrl);
         if (!response.ok) throw new Error('Network response was not ok');
+
         const data = await response.json();
         return data.data || [];
     } catch (error) {
