@@ -5,7 +5,7 @@ import { Search, TrendingUp, DollarSign, BarChart3, Clock, AlertTriangle, Extern
 const App = () => {
     const [category, setCategory] = useState('trending');
     const [timeframe, setTimeframe] = useState('1h');
-    const [range, setRange] = useState('10%');
+    const [range, setRange] = useState('10-30');
     const [markets, setMarkets] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -70,9 +70,9 @@ const App = () => {
                     <div style={{ flex: '1', minWidth: '180px' }}>
                         <label style={{ display: 'block', marginBottom: '8px', fontFamily: 'Rajdhani', fontSize: '0.9rem', color: 'var(--accent-blue)' }}>변동 확률 범위</label>
                         <select className="input-select" style={{ width: '100%' }} value={range} onChange={(e) => setRange(e.target.value)}>
-                            <option value="10%">10%~</option>
-                            <option value="30%">30%~</option>
-                            <option value="50%">50%~</option>
+                            <option value="10-30">10% ~ 30%</option>
+                            <option value="30-50">30% ~ 50%</option>
+                            <option value="50+">50% 이상</option>
                         </select>
                     </div>
 

@@ -79,11 +79,12 @@ export const filterMarkets = (events, timeframe, range) => {
     const field = changeFieldMap[timeframe] || 'oneHourPriceChange';
     const results = [];
 
-    // Parse threshold
-    let threshold = 0;
-    if (range === '10%') { threshold = 0.1; }
-    else if (range === '30%') { threshold = 0.3; }
-    else if (range === '50%') { threshold = 0.5; }
+    // Parse range
+    let min = 0;
+    let max = Infinity;
+    if (range === '10-30') { min = 0.1; max = 0.3; }
+    else if (range === '30-50') { min = 0.3; max = 0.5; }
+    else if (range === '50+') { min = 0.5; max = Infinity; }
 
     events.forEach(event => {
         if (!event.markets || !Array.isArray(event.markets)) return;
@@ -95,7 +96,7 @@ export const filterMarkets = (events, timeframe, range) => {
             const changeValue = market[field] || 0;
             const absChange = Math.abs(changeValue);
 
-            if (absChange >= threshold) {
+            if (absChange >= min && absChange < max) {
                 results.push({
                     id: market.id,
                     title: market.question || event.title,
