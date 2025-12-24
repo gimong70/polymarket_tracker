@@ -36,6 +36,49 @@ export const fetchPolymarketData = async (category) => {
         }
     }
 
+    const fetchWithProxy = async (url) => {
+        if (!import.meta.env.PROD) {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Local fetch failed');
+            return await response.json();
+        }
+
+        // Production proxy strategy: Try AllOrigins first, then fallback to CorsProxy.io
+        const PROXY_LIST = [
+            {
+                name: 'AllOrigins',
+                getUrl: (targetUrl) => `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
+                parse: async (res) => {
+                    const json = await res.json();
+                    return JSON.parse(json.contents);
+                }
+            },
+            {
+                name: 'CorsProxyIO',
+                getUrl: (targetUrl) => `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+                parse: async (res) => await res.json()
+            }
+        ];
+
+        let lastError = null;
+        for (const proxy of PROXY_LIST) {
+            try {
+                console.log(`Attempting fetch via ${proxy.name}...`);
+                const response = await fetch(proxy.getUrl(url));
+                if (!response.ok) throw new Error(`${proxy.name} returned status ${response.status}`);
+
+                const data = await proxy.parse(response);
+                if (data && data.data) return data;
+                throw new Error(`${proxy.name} returned invalid data format`);
+            } catch (error) {
+                console.warn(`${proxy.name} failed:`, error.message);
+                lastError = error;
+                continue; // Try next proxy
+            }
+        }
+        throw lastError || new Error('All proxies failed');
+    };
+
     let url = `${BASE_URL}/events/pagination?active=true&closed=false&limit=100`;
 
     if (category === 'trending') {
@@ -45,17 +88,10 @@ export const fetchPolymarketData = async (category) => {
     }
 
     try {
-        const fetchUrl = import.meta.env.PROD
-            ? `https://corsproxy.io/?${encodeURIComponent(url)}`
-            : url;
-
-        const response = await fetch(fetchUrl);
-        if (!response.ok) throw new Error('Network response was not ok');
-
-        const data = await response.json();
+        const data = await fetchWithProxy(url);
         return data.data || [];
     } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Final error fetching data:', error);
         return [];
     }
 };
