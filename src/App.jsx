@@ -3,9 +3,9 @@ import { fetchPolymarketData, filterMarkets } from './services/polymarketApi';
 import { Search, TrendingUp, DollarSign, BarChart3, Clock, AlertTriangle, ExternalLink, Info } from 'lucide-react';
 
 const App = () => {
-    const [category, setCategory] = useState('all');
+    const [category, setCategory] = useState('trending');
     const [timeframe, setTimeframe] = useState('1h');
-    const [range, setRange] = useState('10-30');
+    const [range, setRange] = useState('10%');
     const [markets, setMarkets] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -45,7 +45,6 @@ const App = () => {
                     <div style={{ flex: '1', minWidth: '180px' }}>
                         <label style={{ display: 'block', marginBottom: '8px', fontFamily: 'Rajdhani', fontSize: '0.9rem', color: 'var(--accent-blue)' }}>조회 섹션</label>
                         <select className="input-select" style={{ width: '100%' }} value={category} onChange={(e) => setCategory(e.target.value)}>
-                            <option value="all">🌐 All (전체)</option>
                             <option value="trending">🔥 Trending</option>
                             <option value="politics">⚖️ Politics</option>
                             <option value="crypto">🪙 Crypto</option>
@@ -63,18 +62,17 @@ const App = () => {
                             <option value="1h">1시간 이내</option>
                             <option value="3h">3시간 이내</option>
                             <option value="6h">6시간 이내</option>
-                            <option value="12h">12시간 이내</option>
-                            <option value="24h">하루(24h) 이내</option>
-                            <option value="7d">일주일(7d) 이내</option>
+                            <option value="24h">하루 이내</option>
+                            <option value="7d">일주일 이내</option>
                         </select>
                     </div>
 
                     <div style={{ flex: '1', minWidth: '180px' }}>
                         <label style={{ display: 'block', marginBottom: '8px', fontFamily: 'Rajdhani', fontSize: '0.9rem', color: 'var(--accent-blue)' }}>변동 확률 범위</label>
                         <select className="input-select" style={{ width: '100%' }} value={range} onChange={(e) => setRange(e.target.value)}>
-                            <option value="10-30">10% ~ 30%</option>
-                            <option value="30-50">30% ~ 50%</option>
-                            <option value="50+">50% 이상</option>
+                            <option value="10%">10%~</option>
+                            <option value="30%">30%~</option>
+                            <option value="50%">50%~</option>
                         </select>
                     </div>
 

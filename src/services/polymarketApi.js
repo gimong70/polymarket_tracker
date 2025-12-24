@@ -3,28 +3,12 @@ const BASE_URL = import.meta.env.PROD
     : '/gamma';
 
 /**
- * Helper to fetch with a timeout
- */
-const fetchWithTimeout = async (resource, options = {}) => {
-    const { timeout = 8000 } = options;
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    try {
-        const response = await fetch(resource, { ...options, signal: controller.signal });
-        clearTimeout(id);
-        return response;
-    } catch (error) {
-        clearTimeout(id);
-        throw error;
-    }
-};
-
-/**
  * Fetches markets based on category
  * @param {string} category - 'all', 'trending', 'politics', 'crypto', 'finance', 'tech', 'world', 'economy', 'trump'
  */
 export const fetchPolymarketData = async (category) => {
     const tagMap = {
+        'trending': 'trending',
         'politics': 'politics',
         'crypto': 'crypto',
         'finance': 'finance',
@@ -34,55 +18,25 @@ export const fetchPolymarketData = async (category) => {
         'trump': 'trump'
     };
 
-    const fetchWithProxy = async (url) => {
-        if (!import.meta.env.PROD) {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error('Local fetch failed');
-            return await response.json();
+    if (category === 'all') {
+        const categoriesToFetch = ['trending', ...Object.keys(tagMap)];
+        try {
+            const allResults = await Promise.all(
+                categoriesToFetch.map(cat => fetchPolymarketData(cat))
+            );
+
+            const flatResults = allResults.flat();
+            const uniqueMap = new Map();
+            flatResults.forEach(event => {
+                if (event && event.id) uniqueMap.set(event.id, event);
+            });
+            return Array.from(uniqueMap.values());
+        } catch (error) {
+            console.error('Error fetching all categories:', error);
+            return [];
         }
+    }
 
-        const PROXY_LIST = [
-            {
-                name: 'AllOrigins',
-                getUrl: (targetUrl) => `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
-                parse: async (res) => {
-                    const json = await res.json();
-                    return JSON.parse(json.contents);
-                }
-            },
-            {
-                name: 'CodeTabs',
-                getUrl: (targetUrl) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-                parse: async (res) => await res.json()
-            },
-            {
-                name: 'CorsProxyIO',
-                getUrl: (targetUrl) => `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-                parse: async (res) => await res.json()
-            }
-        ];
-
-        let lastError = null;
-        for (const proxy of PROXY_LIST) {
-            try {
-                console.log(`Attempting fetch via ${proxy.name}...`);
-                const response = await fetchWithTimeout(proxy.getUrl(url), { timeout: 8000 });
-                if (!response.ok) throw new Error(`${proxy.name} returned status ${response.status}`);
-
-                const data = await proxy.parse(response);
-                if (data && data.data) return data;
-                throw new Error(`${proxy.name} returned invalid data format`);
-            } catch (error) {
-                console.warn(`${proxy.name} failed:`, error.name === 'AbortError' ? 'Timeout' : error.message);
-                lastError = error;
-                continue;
-            }
-        }
-        throw lastError || new Error('All proxies failed');
-    };
-
-    // Optimization: If 'all', just fetch the base pagination once to get a sample of everything.
-    // This reduces 8 parallel requests to 1, significantly improving performance on slow proxies.
     let url = `${BASE_URL}/events/pagination?active=true&closed=false&limit=100`;
 
     if (category === 'trending') {
@@ -92,10 +46,17 @@ export const fetchPolymarketData = async (category) => {
     }
 
     try {
-        const data = await fetchWithProxy(url);
+        const fetchUrl = import.meta.env.PROD
+            ? `https://corsproxy.io/?${encodeURIComponent(url)}`
+            : url;
+
+        const response = await fetch(fetchUrl);
+        if (!response.ok) throw new Error('Network response was not ok');
+
+        const data = await response.json();
         return data.data || [];
     } catch (error) {
-        console.error('Final error fetching data:', error);
+        console.error('Error fetching data:', error);
         return [];
     }
 };
@@ -111,7 +72,6 @@ export const filterMarkets = (events, timeframe, range) => {
         '1h': 'oneHourPriceChange',
         '3h': 'oneDayPriceChange', // Approximation
         '6h': 'oneDayPriceChange', // Approximation
-        '12h': 'oneDayPriceChange', // Approximation
         '24h': 'oneDayPriceChange',
         '7d': 'oneWeekPriceChange'
     };
@@ -119,12 +79,11 @@ export const filterMarkets = (events, timeframe, range) => {
     const field = changeFieldMap[timeframe] || 'oneHourPriceChange';
     const results = [];
 
-    // Parse range
-    let min = 0;
-    let max = Infinity;
-    if (range === '10-30') { min = 0.1; max = 0.3; }
-    else if (range === '30-50') { min = 0.3; max = 0.5; }
-    else if (range === '50+') { min = 0.5; max = Infinity; }
+    // Parse threshold
+    let threshold = 0;
+    if (range === '10%') { threshold = 0.1; }
+    else if (range === '30%') { threshold = 0.3; }
+    else if (range === '50%') { threshold = 0.5; }
 
     events.forEach(event => {
         if (!event.markets || !Array.isArray(event.markets)) return;
@@ -136,7 +95,7 @@ export const filterMarkets = (events, timeframe, range) => {
             const changeValue = market[field] || 0;
             const absChange = Math.abs(changeValue);
 
-            if (absChange >= min && absChange < max) {
+            if (absChange >= threshold) {
                 results.push({
                     id: market.id,
                     title: market.question || event.title,
