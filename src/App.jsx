@@ -68,7 +68,7 @@ const App = () => {
                     </div>
 
                     <div style={{ flex: '1', minWidth: '200px' }}>
-                        <label style={{ display: 'block', marginBottom: '12px', fontFamily: 'Orbitron', fontSize: '0.8rem', color: 'var(--accent-blue)', opacity: 0.8 }}>PROBABILITY RANGE</label>
+                        <label style={{ display: 'block', marginBottom: '12px', fontFamily: 'Orbitron', fontSize: '0.8rem', color: 'var(--accent-blue)', opacity: 0.8 }}>CURRENT PROBABILITY</label>
                         <select className="input-select" style={{ width: '100%' }} value={range} onChange={(e) => setRange(e.target.value)}>
                             <option value="10-30">10% ~ 30%</option>
                             <option value="30-50">30% ~ 50%</option>
@@ -77,7 +77,7 @@ const App = () => {
                     </div>
 
                     <button className="btn-primary" onClick={handleSearch} disabled={loading} style={{ height: '54px', minWidth: '200px' }}>
-                        {loading ? '분석 중...' : <><Search size={22} /> 조회하기</>}
+                        {loading ? '데이터 분석 중...' : <><Search size={22} /> 실시간 데이터 분석</>}
                     </button>
                 </div>
 

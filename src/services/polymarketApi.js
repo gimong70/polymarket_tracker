@@ -12,10 +12,10 @@ export const fetchPolymarketData = async (category) => {
         'politics': 'politics',
         'crypto': 'crypto',
         'finance': 'finance',
-        'tech': 'science-technology',
+        'tech': 'science',
         'world': 'world-affairs',
         'economy': 'economy',
-        'trump': 'trump'
+        'trump': 'politics' // Use politics as base and we can filter for Trump keywords if needed, or stick to a better tag
     };
 
     if (category === 'all') {
@@ -37,7 +37,7 @@ export const fetchPolymarketData = async (category) => {
         }
     }
 
-    let url = `${BASE_URL}/events/pagination?active=true&closed=false&limit=100`;
+    let url = `/events/pagination?active=true&closed=false&limit=100`;
 
     if (category === 'trending') {
         url += '&order=volume&ascending=false';
@@ -46,15 +46,21 @@ export const fetchPolymarketData = async (category) => {
     }
 
     try {
-        const fetchUrl = import.meta.env.PROD
-            ? `https://corsproxy.io/?${encodeURIComponent(url)}`
-            : url;
+        let fetchUrl = `${BASE_URL}${url}`;
 
+        // In production, we use corsproxy.io to bypass CORS
+        if (import.meta.env.PROD) {
+            fetchUrl = `https://corsproxy.io/?${encodeURIComponent('https://gamma-api.polymarket.com' + url)}`;
+        }
+
+        console.log(`Fetching from: ${fetchUrl}`);
         const response = await fetch(fetchUrl);
-        if (!response.ok) throw new Error('Network response was not ok');
+        if (!response.ok) throw new Error(`Network response was not ok: ${response.status}`);
 
         const data = await response.json();
-        return data.data || [];
+        const events = data.data || [];
+        console.log(`Fetched ${events.length} events for category: ${category}`);
+        return events;
     } catch (error) {
         console.error('Error fetching data:', error);
         return [];
@@ -85,7 +91,7 @@ export const filterMarkets = (events, timeframe, range) => {
     let max = Infinity;
     if (range === '10-30') { min = 0.1; max = 0.3; }
     else if (range === '30-50') { min = 0.3; max = 0.5; }
-    else if (range === '50+') { min = 0.5; max = Infinity; }
+    else if (range === '50+') { min = 0.5; max = 1.01; } // Inclusive of 100%
 
     events.forEach(event => {
         if (!event.markets || !Array.isArray(event.markets)) return;
@@ -94,17 +100,24 @@ export const filterMarkets = (events, timeframe, range) => {
             // Exclude closed markets
             if (market.closed === true) return;
 
+            const currentPrice = market.lastTradePrice || 0;
             const changeValue = market[field] || 0;
-            const absChange = Math.abs(changeValue);
 
-            if (absChange >= min && absChange < max) {
+            // Keyword filter for Trump category if it was selected
+            if (category === 'trump') {
+                const titleLower = (market.question || event.title || '').toLowerCase();
+                if (!titleLower.includes('trump')) return;
+            }
+
+            // Probability range should be based on CURRENT PRICE (probability)
+            if (currentPrice >= min && currentPrice < max) {
                 results.push({
                     id: market.id,
                     title: market.question || event.title,
                     slug: event.slug,
                     category: event.tags?.[0]?.label || event.groupItemTitle || 'Market',
                     priceChange: changeValue,
-                    currentPrice: market.lastTradePrice || 0,
+                    currentPrice: currentPrice,
                     volume24h: market.volume24hr || 0,
                     timeframe: timeframe,
                     isApproximated: ['3h', '6h', '12h'].includes(timeframe)
