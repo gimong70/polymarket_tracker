@@ -12,7 +12,7 @@ export const fetchPolymarketData = async (category) => {
         'politics': 'politics',
         'crypto': 'crypto',
         'finance': 'finance',
-        'tech': 'tech',
+        'tech': 'science-technology',
         'world': 'world-affairs',
         'economy': 'economy',
         'trump': 'trump'
@@ -45,44 +45,18 @@ export const fetchPolymarketData = async (category) => {
         url += `&tag_slug=${tagMap[category]}`;
     }
 
-    const fetchWithProxy = async (targetUrl) => {
-        const proxies = [
-            (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-            (url) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-            (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
-        ];
-
-        for (const proxyFn of proxies) {
-            try {
-                const fetchUrl = import.meta.env.PROD ? proxyFn(targetUrl) : targetUrl;
-                console.log(`Fetching from: ${fetchUrl}`);
-
-                const response = await fetch(fetchUrl);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-                let data = await response.json();
-
-                // AllOrigins returns data in a 'contents' field as a string
-                if (data.contents && typeof data.contents === 'string') {
-                    data = JSON.parse(data.contents);
-                }
-
-                if (data && (data.data || Array.isArray(data))) {
-                    return data.data || data;
-                }
-            } catch (err) {
-                console.warn(`Proxy failed: ${err.message}. Trying next...`);
-            }
-            if (!import.meta.env.PROD) break; // Don't loop if not in production
-        }
-        return [];
-    };
-
     try {
-        const results = await fetchWithProxy(url);
-        return results;
+        const fetchUrl = import.meta.env.PROD
+            ? `https://corsproxy.io/?${encodeURIComponent(url)}`
+            : url;
+
+        const response = await fetch(fetchUrl);
+        if (!response.ok) throw new Error('Network response was not ok');
+
+        const data = await response.json();
+        return data.data || [];
     } catch (error) {
-        console.error('Error in fetchPolymarketData:', error);
+        console.error('Error fetching data:', error);
         return [];
     }
 };
@@ -109,8 +83,7 @@ export const filterMarkets = (events, timeframe, range) => {
     // Parse range
     let min = 0;
     let max = Infinity;
-    if (range === 'any') { min = -Infinity; max = Infinity; }
-    else if (range === '10-30') { min = 0.1; max = 0.3; }
+    if (range === '10-30') { min = 0.1; max = 0.3; }
     else if (range === '30-50') { min = 0.3; max = 0.5; }
     else if (range === '50+') { min = 0.5; max = Infinity; }
 
