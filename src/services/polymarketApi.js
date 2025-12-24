@@ -3,6 +3,23 @@ const BASE_URL = import.meta.env.PROD
     : '/gamma';
 
 /**
+ * Helper to fetch with a timeout
+ */
+const fetchWithTimeout = async (resource, options = {}) => {
+    const { timeout = 8000 } = options;
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(resource, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+    } catch (error) {
+        clearTimeout(id);
+        throw error;
+    }
+};
+
+/**
  * Fetches markets based on category
  * @param {string} category - 'all', 'trending', 'politics', 'crypto', 'finance', 'tech', 'world', 'economy', 'trump'
  */
@@ -17,25 +34,6 @@ export const fetchPolymarketData = async (category) => {
         'trump': 'trump'
     };
 
-    if (category === 'all') {
-        const categoriesToFetch = ['trending', ...Object.keys(tagMap)];
-        try {
-            const allResults = await Promise.all(
-                categoriesToFetch.map(cat => fetchPolymarketData(cat))
-            );
-
-            const flatResults = allResults.flat();
-            const uniqueMap = new Map();
-            flatResults.forEach(event => {
-                if (event && event.id) uniqueMap.set(event.id, event);
-            });
-            return Array.from(uniqueMap.values());
-        } catch (error) {
-            console.error('Error fetching all categories:', error);
-            return [];
-        }
-    }
-
     const fetchWithProxy = async (url) => {
         if (!import.meta.env.PROD) {
             const response = await fetch(url);
@@ -43,7 +41,6 @@ export const fetchPolymarketData = async (category) => {
             return await response.json();
         }
 
-        // Production proxy strategy: Try AllOrigins first, then fallback to CorsProxy.io
         const PROXY_LIST = [
             {
                 name: 'AllOrigins',
@@ -52,6 +49,11 @@ export const fetchPolymarketData = async (category) => {
                     const json = await res.json();
                     return JSON.parse(json.contents);
                 }
+            },
+            {
+                name: 'CodeTabs',
+                getUrl: (targetUrl) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+                parse: async (res) => await res.json()
             },
             {
                 name: 'CorsProxyIO',
@@ -64,21 +66,23 @@ export const fetchPolymarketData = async (category) => {
         for (const proxy of PROXY_LIST) {
             try {
                 console.log(`Attempting fetch via ${proxy.name}...`);
-                const response = await fetch(proxy.getUrl(url));
+                const response = await fetchWithTimeout(proxy.getUrl(url), { timeout: 8000 });
                 if (!response.ok) throw new Error(`${proxy.name} returned status ${response.status}`);
 
                 const data = await proxy.parse(response);
                 if (data && data.data) return data;
                 throw new Error(`${proxy.name} returned invalid data format`);
             } catch (error) {
-                console.warn(`${proxy.name} failed:`, error.message);
+                console.warn(`${proxy.name} failed:`, error.name === 'AbortError' ? 'Timeout' : error.message);
                 lastError = error;
-                continue; // Try next proxy
+                continue;
             }
         }
         throw lastError || new Error('All proxies failed');
     };
 
+    // Optimization: If 'all', just fetch the base pagination once to get a sample of everything.
+    // This reduces 8 parallel requests to 1, significantly improving performance on slow proxies.
     let url = `${BASE_URL}/events/pagination?active=true&closed=false&limit=100`;
 
     if (category === 'trending') {
