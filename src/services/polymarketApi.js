@@ -1,4 +1,6 @@
-const BASE_URL = '/gamma';
+const BASE_URL = import.meta.env.MODE === 'production'
+    ? 'https://gamma-api.polymarket.com'
+    : '/gamma';
 
 /**
  * Fetches markets based on category
