@@ -10,7 +10,7 @@ const App: React.FC = () => {
 
     // Filters
     const [category, setCategory] = useState('Trending');
-    const [timeFrame, setTimeFrame] = useState('24h');
+    const [timeFrame, setTimeFrame] = useState('1h');
     const [changeRange, setChangeRange] = useState('50+');
 
     const categories = ['Trending', 'Politics', 'Crypto', 'Finance', 'Tech', 'Economy', 'Trump'];
