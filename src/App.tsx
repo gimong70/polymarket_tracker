@@ -42,13 +42,13 @@ const App: React.FC = () => {
                     else if (timeFrame === '24h') change = m.oneDayPriceChange ?? 0;
                     else if (timeFrame === '1w') change = m.oneWeekPriceChange ?? 0;
                     else {
-                        // Manual calculation for 3h, 6h
                         const hours = timeFrame === '3h' ? 3 : 6;
-                        change = await fetchPriceChange(m.id, hours) ?? 0;
+                        const tokenIds = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : (m.clobTokenIds || []);
+                        change = await fetchPriceChange(m.id, hours, tokenIds) ?? 0;
                     }
 
                     const oldPrice = currentPrice - change;
-                    const percentChange = oldPrice > 0 ? (Math.abs(change) / oldPrice) * 100 : 0;
+                    const percentChange = (oldPrice > 0 && oldPrice <= 1) ? (change / oldPrice) * 100 : 0;
 
                     return { ...m, calculatedChange: change, percentChange: isNaN(percentChange) ? 0 : percentChange };
                 })

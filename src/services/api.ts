@@ -16,6 +16,7 @@ export interface Market {
     active: boolean;
     closed: boolean;
     slug: string;
+    clobTokenIds?: string[] | string;
 }
 
 export const fetchMarkets = async (category?: string): Promise<Market[]> => {
@@ -116,23 +117,27 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
     }
 };
 
-export const fetchPriceChange = async (marketId: string, hours: number): Promise<number> => {
+export const fetchPriceChange = async (marketId: string, hours: number, clobTokenIds: string[] = []): Promise<number> => {
     try {
-        // Only 3h and 6h need manual calculation if not provided by Gamma
         if (hours !== 3 && hours !== 6) return 0;
+
+        // Use the first token ID if available, otherwise fallback to marketId
+        const targetId = clobTokenIds.length > 0 ? clobTokenIds[0].replace(/"/g, '').replace(/[\[\]]/g, '') : marketId;
 
         const response = await axios.get(`${CLOB_API_URL}/prices-history`, {
             params: {
-                market: marketId,
-                interval: '1h',
+                market: targetId,
+                interval: '1d', // '1d' interval gives minute data for the last 24h
             },
         });
 
         const history = response.data.history || [];
-        if (history.length < hours) return 0;
+        const minutes = hours * 60;
 
-        const currentPrice = parseFloat(history[history.length - 1].price);
-        const pastPrice = parseFloat(history[history.length - 1 - hours].price);
+        if (history.length < minutes) return 0;
+
+        const currentPrice = parseFloat(history[history.length - 1].p);
+        const pastPrice = parseFloat(history[history.length - 1 - minutes].p);
 
         return currentPrice - pastPrice;
     } catch (error) {
