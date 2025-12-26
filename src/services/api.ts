@@ -17,6 +17,7 @@ export interface Market {
     closed: boolean;
     slug: string;
     clobTokenIds?: string[] | string;
+    eventSlug?: string;
 }
 
 export const fetchMarkets = async (category?: string): Promise<Market[]> => {
@@ -61,7 +62,8 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
                     category: m.category || event.category || '',
                     eventTitle: event.title,
                     eventTags: event.tags || [],
-                    outcomePrices: outcomePrices || []
+                    outcomePrices: outcomePrices || [],
+                    eventSlug: event.slug
                 });
             });
         });

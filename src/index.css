@@ -129,6 +129,17 @@ select:hover {
     gap: 25px;
 }
 
+.market-card-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transition: transform 0.2s ease;
+}
+
+.market-card-link:hover {
+    transform: translateY(-4px);
+}
+
 .market-card {
     background: var(--card-bg);
     border: 1px solid var(--border-color);

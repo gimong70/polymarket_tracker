@@ -11,7 +11,7 @@ const App: React.FC = () => {
     // Filters
     const [category, setCategory] = useState('Trending');
     const [timeFrame, setTimeFrame] = useState('24h');
-    const [changeRange, setChangeRange] = useState('10-30');
+    const [changeRange, setChangeRange] = useState('50+');
 
     const categories = ['Trending', 'Politics', 'Crypto', 'Finance', 'Tech', 'Economy', 'Trump'];
     const timeFrames = [
@@ -56,8 +56,6 @@ const App: React.FC = () => {
             );
 
             const filtered = processedMarkets.filter((m: any) => {
-                if (changeRange === 'all') return true;
-
                 const p = m.percentChange;
                 if (changeRange === '10-30') return p >= 10 && p <= 30;
                 if (changeRange === '30-50') return p >= 30 && p <= 50;
@@ -127,23 +125,31 @@ const App: React.FC = () => {
                     </div>
                 ) : filteredMarkets.length > 0 ? (
                     filteredMarkets.map((market: any) => (
-                        <div key={market.id} className="market-card">
-                            <img src={market.image} alt={market.question} className="market-image" />
-                            <div className="market-content">
-                                <span className="category-badge">{market.category || 'MARKET'}</span>
-                                <h3 className="market-question">{market.question}</h3>
-                                <div className="market-stats">
-                                    <div className="price-container">
-                                        <span className="price-label">현재 가격</span>
-                                        <span className="price-value">${market.outcomePrices[0] || '0.00'}</span>
-                                    </div>
-                                    <div className={`change-value ${market.calculatedChange >= 0 ? 'change-positive' : 'change-negative'}`}>
-                                        {market.calculatedChange >= 0 ? '+' : ''}
-                                        {market.percentChange.toFixed(1)}%
+                        <a
+                            key={market.id}
+                            href={`https://polymarket.com/event/${market.eventSlug || market.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="market-card-link"
+                        >
+                            <div className="market-card">
+                                <img src={market.image} alt={market.question} className="market-image" />
+                                <div className="market-content">
+                                    <span className="category-badge">{market.category || 'MARKET'}</span>
+                                    <h3 className="market-question">{market.question}</h3>
+                                    <div className="market-stats">
+                                        <div className="price-container">
+                                            <span className="price-label">현재 가격</span>
+                                            <span className="price-value">${market.outcomePrices[0] || '0.00'}</span>
+                                        </div>
+                                        <div className={`change-value ${market.calculatedChange >= 0 ? 'change-positive' : 'change-negative'}`}>
+                                            {market.calculatedChange >= 0 ? '+' : ''}
+                                            {market.percentChange.toFixed(1)}%
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </a>
                     ))
                 ) : (
                     <div className="empty-state">
