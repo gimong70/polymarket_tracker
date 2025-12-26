@@ -21,94 +21,90 @@ export interface Market {
 
 export const fetchMarkets = async (category?: string): Promise<Market[]> => {
     try {
-        const params: any = {
-            active: true,
-            closed: false,
-            limit: 500,
+        const fetchEvents = async (offset: number) => {
+            const response = await axios.get(`${GAMMA_API_URL}/events`, {
+                params: {
+                    limit: 250,
+                    offset: offset,
+                    active: true,
+                    closed: false,
+                    order: 'volume',
+                    ascending: false
+                }
+            });
+            return response.data || [];
         };
 
-        // Map internal categories to API tags
-        const categoryToTag: Record<string, string> = {
-            'Politics': 'Politics',
-            'Crypto': 'Crypto',
-            'Trump': 'Trump',
-            'Finance': 'Business',
-            'Economy': 'Business',
-            'Tech': 'Tech',
-        };
+        // Fetch multiple pages of events to get a high-density data pool
+        const eventPages = await Promise.all([
+            fetchEvents(0),
+            fetchEvents(250),
+            fetchEvents(500),
+            fetchEvents(750)
+        ]);
 
-        if (category && categoryToTag[category]) {
-            params.tag = categoryToTag[category];
-        }
+        const allEvents = eventPages.flat();
+        let flattenedMarkets: any[] = [];
 
-        const response = await axios.get(`${GAMMA_API_URL}/markets`, { params });
-        const rawMarkets = response.data;
-
-        let markets = rawMarkets
-            .map((m: any) => {
+        allEvents.forEach((event: any) => {
+            const eventMarkets = event.markets || [];
+            eventMarkets.forEach((m: any) => {
+                // Ensure price parsing
                 let outcomePrices = m.outcomePrices;
                 if (typeof outcomePrices === 'string') {
-                    try {
-                        outcomePrices = JSON.parse(outcomePrices);
-                    } catch (e) {
-                        outcomePrices = [];
-                    }
+                    try { outcomePrices = JSON.parse(outcomePrices); } catch { outcomePrices = []; }
                 }
-                return {
+
+                flattenedMarkets.push({
                     ...m,
-                    outcomePrices: outcomePrices || [],
-                };
-            })
-            .filter((m: any) => !m.closed && m.active);
+                    image: m.image || event.image,
+                    category: m.category || event.category || '',
+                    eventTitle: event.title,
+                    eventTags: event.tags || [],
+                    outcomePrices: outcomePrices || []
+                });
+            });
+        });
+
+        // Dedup and filter
+        let markets = flattenedMarkets.filter((m: any, index: number, self: any[]) =>
+            index === self.findIndex((t) => t.id === m.id) && !m.closed && m.active
+        );
 
         if (category && category !== 'Trending') {
             const catLower = category.toLowerCase();
+            const categoryToTag: Record<string, string[]> = {
+                'Politics': ['politics', 'election', 'government', 'world'],
+                'Crypto': ['crypto', 'bitcoin', 'ethereum', 'solana'],
+                'Trump': ['trump'],
+                'Finance': ['business', 'finance', 'economy', 'fed'],
+                'Economy': ['business', 'finance', 'economy', 'fed'],
+                'Tech': ['tech', 'ai', 'big-tech']
+            };
 
-            // Secondary filter to ensure accuracy and catch overlapping tags
+            const searchTags = categoryToTag[category] || [catLower];
+
             markets = markets.filter((m: any) => {
-                const title = m.question?.toLowerCase() || '';
-                const slug = m.slug?.toLowerCase() || '';
-                const description = m.description?.toLowerCase() || '';
-                const catField = m.category?.toLowerCase() || '';
+                const title = (m.question + ' ' + (m.eventTitle || '')).toLowerCase();
+                const tags = (m.eventTags || []).map((t: any) => t.label?.toLowerCase() || '');
+                const mCat = (m.category || '').toLowerCase();
 
-                if (category === 'Trump') {
-                    return title.includes('trump') || slug.includes('trump');
-                }
+                // Check tags first (most accurate)
+                if (searchTags.some(st => tags.includes(st))) return true;
 
-                if (category === 'Politics') {
-                    return title.includes('politics') || title.includes('election') ||
-                        slug.includes('politics') || catField.includes('politics') ||
-                        catField.includes('affairs');
-                }
+                // Keyword fallback
+                if (category === 'Trump') return title.includes('trump');
+                if (category === 'Politics') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || mCat.includes('affairs'));
+                if (category === 'Finance' || category === 'Economy') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || title.includes('rate') || title.includes('usd'));
+                if (category === 'Crypto') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || title.includes('btc') || title.includes('eth'));
+                if (category === 'Tech') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || title.includes('nvidia') || title.includes('google'));
 
-                if (category === 'Crypto') {
-                    return title.includes('crypto') || title.includes('bitcoin') ||
-                        title.includes('eth') || slug.includes('crypto') ||
-                        catField.includes('crypto');
-                }
-
-                if (category === 'Finance' || category === 'Economy') {
-                    return title.includes('fed') || title.includes('rate') ||
-                        title.includes('economy') || title.includes('recession') ||
-                        title.includes('finance') || title.includes('usd') ||
-                        catField.includes('business') || catField.includes('economy') ||
-                        catField.includes('finance');
-                }
-
-                if (category === 'Tech') {
-                    return title.includes('tech') || title.includes('ai') ||
-                        title.includes('apple') || title.includes('nvidia') ||
-                        title.includes('google') || title.includes('meta') ||
-                        catField.includes('tech');
-                }
-
-                return catField.includes(catLower);
+                return title.includes(catLower) || mCat.includes(catLower);
             });
         }
 
-        if (category === 'Trending') {
-            markets.sort((a: any, b: any) => (b.volume24hr || 0) - (a.volume24hr || 0));
-        }
+        // Sort by volume for quality
+        markets.sort((a: any, b: any) => (b.volume24hr || 0) - (a.volume24hr || 0));
 
         return markets;
     } catch (error) {

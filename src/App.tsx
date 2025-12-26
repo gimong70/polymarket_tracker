@@ -48,7 +48,8 @@ const App: React.FC = () => {
                     }
 
                     const oldPrice = currentPrice - change;
-                    const percentChange = (oldPrice > 0 && oldPrice <= 1) ? (change / oldPrice) * 100 : 0;
+                    // Calculate percentage change based on absolute move to capture both up and down volatility
+                    const percentChange = (oldPrice > 0 && oldPrice <= 1.5) ? (Math.abs(change) / oldPrice) * 100 : 0;
 
                     return { ...m, calculatedChange: change, percentChange: isNaN(percentChange) ? 0 : percentChange };
                 })
