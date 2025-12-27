@@ -36,7 +36,6 @@ const App: React.FC = () => {
             const processedMarkets = await Promise.all(
                 allMarkets.map(async (m) => {
                     let change = 0;
-                    let currentPrice = parseFloat(m.outcomePrices[0] || '0.5');
 
                     if (timeFrame === '1h') change = m.oneHourPriceChange ?? 0;
                     else if (timeFrame === '24h') change = m.oneDayPriceChange ?? 0;
@@ -47,9 +46,8 @@ const App: React.FC = () => {
                         change = await fetchPriceChange(m.id, hours, tokenIds) ?? 0;
                     }
 
-                    const oldPrice = currentPrice - change;
-                    // Calculate percentage change based on absolute move to capture both up and down volatility
-                    const percentChange = (oldPrice > 0 && oldPrice <= 1.5) ? (Math.abs(change) / oldPrice) * 100 : 0;
+                    // Volatility is defined as the change in specific event probability within 0-100% range
+                    const percentChange = Math.abs(change) * 100;
 
                     return { ...m, calculatedChange: change, percentChange: isNaN(percentChange) ? 0 : percentChange };
                 })
@@ -128,8 +126,6 @@ const App: React.FC = () => {
                         <a
                             key={market.id}
                             href={`https://polymarket.com/event/${market.eventSlug || market.slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
                             className="market-card-link"
                         >
                             <div className="market-card">
@@ -139,8 +135,8 @@ const App: React.FC = () => {
                                     <h3 className="market-question">{market.question}</h3>
                                     <div className="market-stats">
                                         <div className="price-container">
-                                            <span className="price-label">현재 가격</span>
-                                            <span className="price-value">${market.outcomePrices[0] || '0.00'}</span>
+                                            <span className="price-label">기준 시간</span>
+                                            <span className="price-value">{timeFrames.find(tf => tf.value === timeFrame)?.label}</span>
                                         </div>
                                         <div className={`change-value ${market.calculatedChange >= 0 ? 'change-positive' : 'change-negative'}`}>
                                             {market.calculatedChange >= 0 ? '+' : ''}
