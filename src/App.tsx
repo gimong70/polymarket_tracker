@@ -137,6 +137,7 @@ const App: React.FC = () => {
                             <div className="market-card">
                                 <img src={market.image} alt={market.question} className="market-image" />
                                 <div className="market-content">
+                                    <span className="category-badge">{market.category || 'MARKET'}</span>
                                     <h3 className="market-question">{market.question}</h3>
                                     <div className="market-stats">
                                         <div className="price-container">
