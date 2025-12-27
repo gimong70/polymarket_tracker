@@ -32,37 +32,26 @@ const App: React.FC = () => {
         setError(null);
         try {
             const allMarkets = await fetchMarkets(category);
-            const processedMarkets: any[] = [];
 
-            // Increased depth to 150 to ensure volatile markets are found
-            const limitedMarkets = allMarkets.slice(0, 150);
+            const processedMarkets = await Promise.all(
+                allMarkets.map(async (m) => {
+                    let change = 0;
 
-            // Chunk size for parallel requests to prevent network saturation
-            const CHUNK_SIZE = 12;
-            for (let i = 0; i < limitedMarkets.length; i += CHUNK_SIZE) {
-                const chunk = limitedMarkets.slice(i, i + CHUNK_SIZE);
-                const chunkResults = await Promise.allSettled(
-                    chunk.map(async (m) => {
-                        let hours = 1;
-                        if (timeFrame === '3h') hours = 3;
-                        else if (timeFrame === '6h') hours = 6;
-                        else if (timeFrame === '24h') hours = 24;
-                        else if (timeFrame === '1w') hours = 168;
+                    let hours = 1;
+                    if (timeFrame === '3h') hours = 3;
+                    else if (timeFrame === '6h') hours = 6;
+                    else if (timeFrame === '24h') hours = 24;
+                    else if (timeFrame === '1w') hours = 168;
 
-                        const tokenIds = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : (m.clobTokenIds || []);
-                        const change = await fetchPriceChange(m.id, hours, tokenIds) ?? 0;
-                        const percentChange = Math.abs(change) * 100;
+                    const tokenIds = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : (m.clobTokenIds || []);
+                    change = await fetchPriceChange(m.id, hours, tokenIds) ?? 0;
 
-                        return { ...m, calculatedChange: change, percentChange: isNaN(percentChange) ? 0 : percentChange };
-                    })
-                );
+                    // Volatility is defined as the change in specific event probability within 0-100% range
+                    const percentChange = Math.abs(change) * 100;
 
-                chunkResults.forEach(res => {
-                    if (res.status === 'fulfilled') {
-                        processedMarkets.push(res.value);
-                    }
-                });
-            }
+                    return { ...m, calculatedChange: change, percentChange: isNaN(percentChange) ? 0 : percentChange };
+                })
+            );
 
             const filtered = processedMarkets.filter((m: any) => {
                 const p = m.percentChange;
