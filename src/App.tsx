@@ -145,7 +145,7 @@ const App: React.FC = () => {
                                             <span className="price-value">{timeFrames.find(tf => tf.value === timeFrame)?.label}</span>
                                         </div>
                                         <div className={`change-value ${market.calculatedChange >= 0 ? 'change-positive' : 'change-negative'}`}>
-                                            {market.calculatedChange >= 0 ? '+' : '-'}
+                                            {market.calculatedChange >= 0 ? '+' : ''}
                                             {market.percentChange.toFixed(1)}%
                                         </div>
                                     </div>
