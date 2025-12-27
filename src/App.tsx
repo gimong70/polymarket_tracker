@@ -34,14 +34,14 @@ const App: React.FC = () => {
             const allMarkets = await fetchMarkets(category);
             const processedMarkets: any[] = [];
 
-            // Limit to top 50 markets to speed up processing and ensure quality
-            const limitedMarkets = allMarkets.slice(0, 50);
+            // Increased depth to 150 to ensure volatile markets are found
+            const limitedMarkets = allMarkets.slice(0, 150);
 
             // Chunk size for parallel requests to prevent network saturation
-            const CHUNK_SIZE = 5;
+            const CHUNK_SIZE = 12;
             for (let i = 0; i < limitedMarkets.length; i += CHUNK_SIZE) {
                 const chunk = limitedMarkets.slice(i, i + CHUNK_SIZE);
-                const chunkResults = await Promise.all(
+                const chunkResults = await Promise.allSettled(
                     chunk.map(async (m) => {
                         let hours = 1;
                         if (timeFrame === '3h') hours = 3;
@@ -56,7 +56,12 @@ const App: React.FC = () => {
                         return { ...m, calculatedChange: change, percentChange: isNaN(percentChange) ? 0 : percentChange };
                     })
                 );
-                processedMarkets.push(...chunkResults);
+
+                chunkResults.forEach(res => {
+                    if (res.status === 'fulfilled') {
+                        processedMarkets.push(res.value);
+                    }
+                });
             }
 
             const filtered = processedMarkets.filter((m: any) => {

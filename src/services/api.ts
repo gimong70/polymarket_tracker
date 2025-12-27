@@ -34,7 +34,7 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
         const fetchEvents = async (offset: number) => {
             const response = await axios.get(`${GAMMA_API_URL}/events`, {
                 params: {
-                    limit: 100, // Reduced from 250 to 100 for faster initial load
+                    limit: 250,
                     offset: offset,
                     active: true,
                     closed: false,
@@ -45,11 +45,11 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
             return response.data || [];
         };
 
-        // Fetch 3 pages instead of 4 to balance depth and speed
         const eventPages = await Promise.all([
             fetchEvents(0),
-            fetchEvents(100),
-            fetchEvents(200)
+            fetchEvents(250),
+            fetchEvents(500),
+            fetchEvents(750)
         ]);
 
         const allEvents = eventPages.flat();
@@ -119,16 +119,16 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
 };
 
 export const fetchPriceChange = async (marketId: string, hours: number, clobTokenIds: string[] = []): Promise<number> => {
-    const cacheKey = `${marketId}_${hours}`;
+    const targetId = clobTokenIds.length > 0
+        ? (typeof clobTokenIds === 'string' ? JSON.parse(clobTokenIds)[0] : clobTokenIds[0]).replace(/"/g, '').replace(/[\[\]]/g, '')
+        : marketId;
+
+    const cacheKey = `${targetId}_${hours}`;
     if (historyCache[cacheKey] && Date.now() - historyCache[cacheKey].timestamp < CACHE_TTL) {
         return historyCache[cacheKey].data;
     }
 
     try {
-        const targetId = clobTokenIds.length > 0
-            ? (typeof clobTokenIds === 'string' ? JSON.parse(clobTokenIds)[0] : clobTokenIds[0]).replace(/"/g, '').replace(/[\[\]]/g, '')
-            : marketId;
-
         let interval = '1d';
         if (hours > 24) interval = '1w';
 
@@ -139,7 +139,7 @@ export const fetchPriceChange = async (marketId: string, hours: number, clobToke
             },
         });
 
-        const history = response.data.history || response.data || [];
+        const history = response.data.history || (Array.isArray(response.data) ? response.data : []);
         if (!Array.isArray(history) || history.length < 2) return 0;
 
         const currentPrice = parseFloat(history[history.length - 1].p);
