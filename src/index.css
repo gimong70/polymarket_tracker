@@ -26,7 +26,7 @@ body {
 .app-container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px 15px;
+    padding: 40px 20px;
 }
 
 header {
@@ -41,7 +41,7 @@ h1 {
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     letter-spacing: -0.05em;
 }
 
@@ -58,10 +58,10 @@ h1 {
     border-radius: 20px;
     padding: 20px;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 15px;
     margin-bottom: 30px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
 }
 
 .filter-group {
@@ -125,8 +125,8 @@ select:hover {
 /* Market List */
 .market-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
 }
 
 .market-card-link {
@@ -143,7 +143,7 @@ select:hover {
 .market-card {
     background: var(--card-bg);
     border: 1px solid var(--border-color);
-    border-radius: 20px;
+    border-radius: 16px;
     overflow: hidden;
     transition: all 0.3s ease;
     backdrop-filter: blur(10px);
@@ -163,7 +163,7 @@ select:hover {
 }
 
 .market-content {
-    padding: 18px;
+    padding: 16px;
 }
 
 .category-badge {
@@ -174,17 +174,17 @@ select:hover {
     border-radius: 20px;
     font-size: 0.75rem;
     font-weight: 700;
-    margin-bottom: 10px;
+    margin-bottom: 15px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
 
 .market-question {
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
-    line-height: 1.5;
-    margin-bottom: 15px;
-    height: 3em;
+    line-height: 1.4;
+    margin-bottom: 12px;
+    height: 2.8em;
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -211,7 +211,7 @@ select:hover {
 }
 
 .price-value {
-    font-size: 1.1rem;
+    font-size: 1.4rem;
     font-weight: 700;
     color: var(--text-primary);
 }
@@ -258,25 +258,35 @@ select:hover {
 }
 
 @media (max-width: 768px) {
-    .filters-container {
-        grid-template-columns: 1fr;
-        padding: 15px;
+    .app-container {
+        padding: 20px 12px;
+    }
+
+    header {
+        margin-bottom: 20px;
     }
 
     h1 {
         font-size: 1.8rem;
     }
 
+    .filters-container {
+        grid-template-columns: repeat(2, 1fr);
+        padding: 15px;
+        gap: 12px;
+    }
+
+    .search-button {
+        grid-column: span 2;
+        width: 100%;
+    }
+
     .market-grid {
         grid-template-columns: 1fr;
-        gap: 15px;
+        gap: 12px;
     }
 
     .market-image {
         height: 120px;
-    }
-
-    .market-content {
-        padding: 15px;
     }
 }
