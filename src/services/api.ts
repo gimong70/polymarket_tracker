@@ -30,7 +30,8 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
                     active: true,
                     closed: false,
                     order: 'volume',
-                    ascending: false
+                    ascending: false,
+                    _t: Date.now()
                 }
             });
             return response.data || [];
@@ -117,7 +118,7 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
 
 export const fetchPriceChange = async (marketId: string, hours: number, clobTokenIds: string[] = []): Promise<number> => {
     try {
-        if (hours !== 3 && hours !== 6) return 0;
+        if (hours !== 1 && hours !== 3 && hours !== 6) return 0;
 
         // Use the first token ID if available, otherwise fallback to marketId
         const targetId = clobTokenIds.length > 0 ? clobTokenIds[0].replace(/"/g, '').replace(/[\[\]]/g, '') : marketId;
@@ -126,6 +127,7 @@ export const fetchPriceChange = async (marketId: string, hours: number, clobToke
             params: {
                 market: targetId,
                 interval: '1d', // '1d' interval gives minute data for the last 24h
+                _t: Date.now()
             },
         });
 
