@@ -33,36 +33,46 @@ const App: React.FC = () => {
         try {
             const allMarkets = await fetchMarkets(category);
 
+            // Optimization: If timeframe is covered by Gamma API, use it directly to avoid CLOB API overhead
+            const isGammaDataAvailable = ['1h', '24h', '1w'].includes(timeFrame);
+
+            // If CLOB API is needed (3h, 6h), limit to top markets to prevent rate limiting
+            const processingMarkets = isGammaDataAvailable ? allMarkets : allMarkets.slice(0, 50);
+
             const processedMarkets = await Promise.all(
-                allMarkets.map(async (m) => {
-                    const tokenIds = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : (m.clobTokenIds || []);
+                processingMarkets.map(async (m) => {
+                    try {
+                        const tokenIds = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : (m.clobTokenIds || []);
 
-                    // If multiple tokens, check all and pick the max change
-                    let maxAbsoluteChange = 0;
-                    let displayChange = 0;
+                        let maxAbsoluteChange = 0;
+                        let displayChange = 0;
 
-                    if (tokenIds.length > 0) {
-                        const changes = await Promise.all(tokenIds.map(async (tid: string) => {
-                            return await fetchPriceChange(m.id, timeFrame, [tid]);
-                        }));
+                        if (isGammaDataAvailable) {
+                            // Use Gamma API pre-calculated fields
+                            if (timeFrame === '1h') displayChange = m.oneHourPriceChange ?? 0;
+                            else if (timeFrame === '24h') displayChange = m.oneDayPriceChange ?? 0;
+                            else if (timeFrame === '1w') displayChange = m.oneWeekPriceChange ?? 0;
+                            maxAbsoluteChange = Math.abs(displayChange);
+                        } else if (tokenIds.length > 0) {
+                            // Expensive CLOB API call for 3h/6h
+                            const changes = await Promise.all(tokenIds.slice(0, 2).map(async (tid: string) => {
+                                return await fetchPriceChange(m.id, timeFrame, [tid]);
+                            }));
 
-                        changes.forEach(c => {
-                            if (Math.abs(c) > maxAbsoluteChange) {
-                                maxAbsoluteChange = Math.abs(c);
-                                displayChange = c;
-                            }
-                        });
-                    } else {
-                        // Fallback logic if no clobTokenIds
-                        if (timeFrame === '1h') displayChange = m.oneHourPriceChange ?? 0;
-                        else if (timeFrame === '24h') displayChange = m.oneDayPriceChange ?? 0;
-                        else if (timeFrame === '1w') displayChange = m.oneWeekPriceChange ?? 0;
-                        maxAbsoluteChange = Math.abs(displayChange);
+                            changes.forEach(c => {
+                                if (Math.abs(c) > maxAbsoluteChange) {
+                                    maxAbsoluteChange = Math.abs(c);
+                                    displayChange = c;
+                                }
+                            });
+                        }
+
+                        const percentChange = maxAbsoluteChange * 100;
+                        return { ...m, calculatedChange: displayChange, percentChange: isNaN(percentChange) ? 0 : percentChange };
+                    } catch (err) {
+                        console.error(`Error processing market ${m.id}:`, err);
+                        return { ...m, calculatedChange: 0, percentChange: 0 };
                     }
-
-                    const percentChange = maxAbsoluteChange * 100;
-
-                    return { ...m, calculatedChange: displayChange, percentChange: isNaN(percentChange) ? 0 : percentChange };
                 })
             );
 
@@ -76,7 +86,7 @@ const App: React.FC = () => {
 
             setFilteredMarkets(filtered);
         } catch (err) {
-            setError('데이터를 가져오는 중 오류가 발생했습니다.');
+            setError('데이터를 가져오는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
             console.error(err);
         } finally {
             setLoading(false);
