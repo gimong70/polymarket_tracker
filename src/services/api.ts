@@ -20,12 +20,21 @@ export interface Market {
     eventSlug?: string;
 }
 
+const marketCache: Record<string, { data: Market[], timestamp: number }> = {};
+const historyCache: Record<string, { data: number, timestamp: number }> = {};
+const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
+
 export const fetchMarkets = async (category?: string): Promise<Market[]> => {
+    const cacheKey = category || 'all';
+    if (marketCache[cacheKey] && Date.now() - marketCache[cacheKey].timestamp < CACHE_TTL) {
+        return marketCache[cacheKey].data;
+    }
+
     try {
         const fetchEvents = async (offset: number) => {
             const response = await axios.get(`${GAMMA_API_URL}/events`, {
                 params: {
-                    limit: 250,
+                    limit: 100, // Reduced from 250 to 100 for faster initial load
                     offset: offset,
                     active: true,
                     closed: false,
@@ -36,12 +45,11 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
             return response.data || [];
         };
 
-        // Fetch multiple pages of events to get a high-density data pool
+        // Fetch 3 pages instead of 4 to balance depth and speed
         const eventPages = await Promise.all([
             fetchEvents(0),
-            fetchEvents(250),
-            fetchEvents(500),
-            fetchEvents(750)
+            fetchEvents(100),
+            fetchEvents(200)
         ]);
 
         const allEvents = eventPages.flat();
@@ -50,7 +58,6 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
         allEvents.forEach((event: any) => {
             const eventMarkets = event.markets || [];
             eventMarkets.forEach((m: any) => {
-                // Ensure price parsing
                 let outcomePrices = m.outcomePrices;
                 if (typeof outcomePrices === 'string') {
                     try { outcomePrices = JSON.parse(outcomePrices); } catch { outcomePrices = []; }
@@ -68,7 +75,6 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
             });
         });
 
-        // Dedup and filter
         let markets = flattenedMarkets.filter((m: any, index: number, self: any[]) =>
             index === self.findIndex((t) => t.id === m.id) && !m.closed && m.active
         );
@@ -91,10 +97,7 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
                 const tags = (m.eventTags || []).map((t: any) => t.label?.toLowerCase() || '');
                 const mCat = (m.category || '').toLowerCase();
 
-                // Check tags first (most accurate)
                 if (searchTags.some(st => tags.includes(st))) return true;
-
-                // Keyword fallback
                 if (category === 'Trump') return title.includes('trump');
                 if (category === 'Politics') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || mCat.includes('affairs'));
                 if (category === 'Finance' || category === 'Economy') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || title.includes('rate') || title.includes('usd'));
@@ -105,9 +108,9 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
             });
         }
 
-        // Sort by volume for quality
         markets.sort((a: any, b: any) => (b.volume24hr || 0) - (a.volume24hr || 0));
 
+        marketCache[cacheKey] = { data: markets, timestamp: Date.now() };
         return markets;
     } catch (error) {
         console.error('Error fetching markets:', error);
@@ -116,13 +119,16 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
 };
 
 export const fetchPriceChange = async (marketId: string, hours: number, clobTokenIds: string[] = []): Promise<number> => {
+    const cacheKey = `${marketId}_${hours}`;
+    if (historyCache[cacheKey] && Date.now() - historyCache[cacheKey].timestamp < CACHE_TTL) {
+        return historyCache[cacheKey].data;
+    }
+
     try {
-        // Use the first token ID if available, otherwise fallback to marketId
         const targetId = clobTokenIds.length > 0
             ? (typeof clobTokenIds === 'string' ? JSON.parse(clobTokenIds)[0] : clobTokenIds[0]).replace(/"/g, '').replace(/[\[\]]/g, '')
             : marketId;
 
-        // Choose interval based on hours to get enough data
         let interval = '1d';
         if (hours > 24) interval = '1w';
 
@@ -140,7 +146,6 @@ export const fetchPriceChange = async (marketId: string, hours: number, clobToke
         const currentTime = history[history.length - 1].t;
         const pastTargetTime = currentTime - (hours * 3600);
 
-        // Find the price at the target time (or the closest available before it)
         let pastPrice = parseFloat(history[0].p);
         for (let i = history.length - 1; i >= 0; i--) {
             if (history[i].t <= pastTargetTime) {
@@ -149,7 +154,9 @@ export const fetchPriceChange = async (marketId: string, hours: number, clobToke
             }
         }
 
-        return currentPrice - pastPrice;
+        const change = currentPrice - pastPrice;
+        historyCache[cacheKey] = { data: change, timestamp: Date.now() };
+        return change;
     } catch (error) {
         console.error(`Error fetching price history for ${marketId}:`, error);
         return 0;
