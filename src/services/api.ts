@@ -117,25 +117,37 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
 
 export const fetchPriceChange = async (marketId: string, hours: number, clobTokenIds: string[] = []): Promise<number> => {
     try {
-        if (hours !== 3 && hours !== 6) return 0;
-
         // Use the first token ID if available, otherwise fallback to marketId
-        const targetId = clobTokenIds.length > 0 ? clobTokenIds[0].replace(/"/g, '').replace(/[\[\]]/g, '') : marketId;
+        const targetId = clobTokenIds.length > 0
+            ? (typeof clobTokenIds === 'string' ? JSON.parse(clobTokenIds)[0] : clobTokenIds[0]).replace(/"/g, '').replace(/[\[\]]/g, '')
+            : marketId;
+
+        // Choose interval based on hours to get enough data
+        let interval = '1d';
+        if (hours > 24) interval = '1w';
 
         const response = await axios.get(`${CLOB_API_URL}/prices-history`, {
             params: {
                 market: targetId,
-                interval: '1d', // '1d' interval gives minute data for the last 24h
+                interval: interval,
             },
         });
 
-        const history = response.data.history || [];
-        const minutes = hours * 60;
-
-        if (history.length < minutes) return 0;
+        const history = response.data.history || response.data || [];
+        if (!Array.isArray(history) || history.length < 2) return 0;
 
         const currentPrice = parseFloat(history[history.length - 1].p);
-        const pastPrice = parseFloat(history[history.length - 1 - minutes].p);
+        const currentTime = history[history.length - 1].t;
+        const pastTargetTime = currentTime - (hours * 3600);
+
+        // Find the price at the target time (or the closest available before it)
+        let pastPrice = parseFloat(history[0].p);
+        for (let i = history.length - 1; i >= 0; i--) {
+            if (history[i].t <= pastTargetTime) {
+                pastPrice = parseFloat(history[i].p);
+                break;
+            }
+        }
 
         return currentPrice - pastPrice;
     } catch (error) {
