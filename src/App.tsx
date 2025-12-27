@@ -11,7 +11,7 @@ const App: React.FC = () => {
     // Filters
     const [category, setCategory] = useState('Trending');
     const [timeFrame, setTimeFrame] = useState('1h');
-    const [changeRange, setChangeRange] = useState('50+');
+    const [changeRange, setChangeRange] = useState('10-30');
 
     const categories = ['Trending', 'Politics', 'Crypto', 'Finance', 'Tech', 'Economy', 'Trump'];
     const timeFrames = [
@@ -35,24 +35,34 @@ const App: React.FC = () => {
 
             const processedMarkets = await Promise.all(
                 allMarkets.map(async (m) => {
-                    let change = 0;
-                    let currentPrice = parseFloat(m.outcomePrices[0] || '0.5');
+                    const tokenIds = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : (m.clobTokenIds || []);
 
-                    if (timeFrame === '1h') change = m.oneHourPriceChange ?? 0;
-                    else if (timeFrame === '24h') change = m.oneDayPriceChange ?? 0;
-                    else if (timeFrame === '1w') change = m.oneWeekPriceChange ?? 0;
-                    else {
-                        const hours = timeFrame === '3h' ? 3 : 6;
-                        const tokenIds = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : (m.clobTokenIds || []);
-                        change = await fetchPriceChange(m.id, hours, tokenIds) ?? 0;
+                    // If multiple tokens, check all and pick the max change
+                    let maxAbsoluteChange = 0;
+                    let displayChange = 0;
+
+                    if (tokenIds.length > 0) {
+                        const changes = await Promise.all(tokenIds.map(async (tid: string) => {
+                            return await fetchPriceChange(m.id, timeFrame, [tid]);
+                        }));
+
+                        changes.forEach(c => {
+                            if (Math.abs(c) > maxAbsoluteChange) {
+                                maxAbsoluteChange = Math.abs(c);
+                                displayChange = c;
+                            }
+                        });
+                    } else {
+                        // Fallback logic if no clobTokenIds
+                        if (timeFrame === '1h') displayChange = m.oneHourPriceChange ?? 0;
+                        else if (timeFrame === '24h') displayChange = m.oneDayPriceChange ?? 0;
+                        else if (timeFrame === '1w') displayChange = m.oneWeekPriceChange ?? 0;
+                        maxAbsoluteChange = Math.abs(displayChange);
                     }
 
-                    const oldPrice = currentPrice - change;
-                    // Calculate percentage change based on absolute move to capture both up and down volatility
-                    // User requested 0-100% range based on probability change
-                    const percentChange = Math.abs(change) * 100;
+                    const percentChange = maxAbsoluteChange * 100;
 
-                    return { ...m, calculatedChange: change, percentChange: isNaN(percentChange) ? 0 : percentChange };
+                    return { ...m, calculatedChange: displayChange, percentChange: isNaN(percentChange) ? 0 : percentChange };
                 })
             );
 

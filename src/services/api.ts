@@ -115,27 +115,41 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
     }
 };
 
-export const fetchPriceChange = async (marketId: string, hours: number, clobTokenIds: string[] = []): Promise<number> => {
+export const fetchPriceChange = async (marketId: string, timeFrame: string, clobTokenIds: string[] = []): Promise<number> => {
     try {
-        if (hours !== 3 && hours !== 6) return 0;
+        // Use the first token ID if available
+        let targetId = clobTokenIds.length > 0 ? clobTokenIds[0] : marketId;
+        targetId = targetId.replace(/"/g, '').replace(/[\[\]]/g, '');
 
-        // Use the first token ID if available, otherwise fallback to marketId
-        const targetId = clobTokenIds.length > 0 ? clobTokenIds[0].replace(/"/g, '').replace(/[\[\]]/g, '') : marketId;
+        if (!targetId) return 0;
+
+        let interval = '1m';
+        let limit = 1000;
+
+        switch (timeFrame) {
+            case '1h': interval = '1m'; limit = 65; break;
+            case '3h': interval = '1m'; limit = 185; break;
+            case '6h': interval = '1m'; limit = 365; break;
+            case '24h': interval = '1h'; limit = 26; break;
+            case '1w': interval = '6h'; limit = 30; break;
+            default: interval = '1h'; limit = 100;
+        }
 
         const response = await axios.get(`${CLOB_API_URL}/prices-history`, {
             params: {
                 market: targetId,
-                interval: '1d', // '1d' interval gives minute data for the last 24h
+                interval: interval,
             },
         });
 
         const history = response.data.history || [];
-        const minutes = hours * 60;
-
-        if (history.length < minutes) return 0;
+        if (history.length < 2) return 0;
 
         const currentPrice = parseFloat(history[history.length - 1].p);
-        const pastPrice = parseFloat(history[history.length - 1 - minutes].p);
+
+        // Find the price closest to the target time
+        // Since we limited or used specific intervals, the first element is roughly our target past price
+        const pastPrice = parseFloat(history[0].p);
 
         return currentPrice - pastPrice;
     } catch (error) {
