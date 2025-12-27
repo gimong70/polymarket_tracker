@@ -30,18 +30,18 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
                     active: true,
                     closed: false,
                     order: 'volume',
-                    ascending: false,
-                    _t: Date.now()
+                    ascending: false
                 }
             });
             return response.data || [];
         };
 
         // Fetch multiple pages of events to get a high-density data pool
-        // Using Promise.all can sometimes hit rate limits, so we'll fetch sequentially if needed or just 2 pages if it's too much.
         const eventPages = await Promise.all([
             fetchEvents(0),
-            fetchEvents(250)
+            fetchEvents(250),
+            fetchEvents(500),
+            fetchEvents(750)
         ]);
 
         const allEvents = eventPages.flat();
@@ -96,12 +96,12 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
 
                 // Keyword fallback
                 if (category === 'Trump') return title.includes('trump');
-                if (category === 'Politics') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || mCat.includes('affairs') || tags.includes(kw));
-                if (category === 'Finance' || category === 'Economy') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || title.includes('rate') || title.includes('usd') || tags.includes(kw));
-                if (category === 'Crypto') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || title.includes('btc') || title.includes('eth') || tags.includes(kw));
-                if (category === 'Tech') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || title.includes('nvidia') || title.includes('google') || tags.includes(kw));
+                if (category === 'Politics') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || mCat.includes('affairs'));
+                if (category === 'Finance' || category === 'Economy') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || title.includes('rate') || title.includes('usd'));
+                if (category === 'Crypto') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || title.includes('btc') || title.includes('eth'));
+                if (category === 'Tech') return searchTags.some(kw => title.includes(kw) || mCat.includes(kw) || title.includes('nvidia') || title.includes('google'));
 
-                return title.includes(catLower) || mCat.includes(catLower) || tags.includes(catLower);
+                return title.includes(catLower) || mCat.includes(catLower);
             });
         }
 
@@ -117,7 +117,7 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
 
 export const fetchPriceChange = async (marketId: string, hours: number, clobTokenIds: string[] = []): Promise<number> => {
     try {
-        if (hours !== 1 && hours !== 3 && hours !== 6) return 0;
+        if (hours !== 3 && hours !== 6) return 0;
 
         // Use the first token ID if available, otherwise fallback to marketId
         const targetId = clobTokenIds.length > 0 ? clobTokenIds[0].replace(/"/g, '').replace(/[\[\]]/g, '') : marketId;
@@ -126,7 +126,6 @@ export const fetchPriceChange = async (marketId: string, hours: number, clobToke
             params: {
                 market: targetId,
                 interval: '1d', // '1d' interval gives minute data for the last 24h
-                _t: Date.now()
             },
         });
 

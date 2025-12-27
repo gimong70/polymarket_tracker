@@ -11,7 +11,7 @@ const App: React.FC = () => {
     // Filters
     const [category, setCategory] = useState('Trending');
     const [timeFrame, setTimeFrame] = useState('1h');
-    const [changeRange, setChangeRange] = useState('all');
+    const [changeRange, setChangeRange] = useState('50+');
 
     const categories = ['Trending', 'Politics', 'Crypto', 'Finance', 'Tech', 'Economy', 'Trump'];
     const timeFrames = [
@@ -22,64 +22,41 @@ const App: React.FC = () => {
         { label: '일주일 이내', value: '1w' },
     ];
     const changeRanges = [
-        { label: '전체', value: 'all' },
         { label: '10% ~ 30%', value: '10-30' },
         { label: '30% ~ 50%', value: '30-50' },
         { label: '50% 이상', value: '50+' },
     ];
 
     const handleSearch = async () => {
-        if (loading) return; // Prevent multiple clicks
-
         setLoading(true);
         setError(null);
-
-        // Safety timeout to reset loading state if something hangs
-        const timeoutId = setTimeout(() => {
-            if (loading) {
-                setLoading(false);
-                setError('요청 시간이 초과되었습니다. 다시 시도해 주세요.');
-            }
-        }, 15000);
-
         try {
-            console.log('Fetching markets for category:', category);
             const allMarkets = await fetchMarkets(category);
 
-            if (!allMarkets || allMarkets.length === 0) {
-                setFilteredMarkets([]);
-                setLoading(false);
-                clearTimeout(timeoutId);
-                return;
-            }
-
-            // Limit to top 30 markets to avoid rate limits and improve performance
-            const topMarkets = allMarkets.slice(0, 30);
-
             const processedMarkets = await Promise.all(
-                topMarkets.map(async (m) => {
-                    try {
-                        let change = 0;
-                        if (timeFrame === '1h' || timeFrame === '3h' || timeFrame === '6h') {
-                            const hours = timeFrame === '1h' ? 1 : (timeFrame === '3h' ? 3 : 6);
-                            const tokenIds = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : (m.clobTokenIds || []);
-                            change = await fetchPriceChange(m.id, hours, tokenIds) ?? 0;
-                        } else if (timeFrame === '24h') {
-                            change = m.oneDayPriceChange ?? 0;
-                        } else if (timeFrame === '1w') {
-                            change = m.oneWeekPriceChange ?? 0;
-                        }
+                allMarkets.map(async (m) => {
+                    let change = 0;
+                    let currentPrice = parseFloat(m.outcomePrices[0] || '0.5');
 
-                        const percentChange = Math.abs(change) * 100;
-                        return { ...m, calculatedChange: change, percentChange: isNaN(percentChange) ? 0 : percentChange };
-                    } catch (err) {
-                        return { ...m, calculatedChange: 0, percentChange: 0 };
+                    if (timeFrame === '1h') change = m.oneHourPriceChange ?? 0;
+                    else if (timeFrame === '24h') change = m.oneDayPriceChange ?? 0;
+                    else if (timeFrame === '1w') change = m.oneWeekPriceChange ?? 0;
+                    else {
+                        const hours = timeFrame === '3h' ? 3 : 6;
+                        const tokenIds = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : (m.clobTokenIds || []);
+                        change = await fetchPriceChange(m.id, hours, tokenIds) ?? 0;
                     }
+
+                    const oldPrice = currentPrice - change;
+                    // Calculate percentage change based on absolute move to capture both up and down volatility
+                    // User requested 0-100% range based on probability change
+                    const percentChange = Math.abs(change) * 100;
+
+                    return { ...m, calculatedChange: change, percentChange: isNaN(percentChange) ? 0 : percentChange };
                 })
             );
 
             const filtered = processedMarkets.filter((m: any) => {
-                if (changeRange === 'all') return true;
                 const p = m.percentChange;
                 if (changeRange === '10-30') return p >= 10 && p <= 30;
                 if (changeRange === '30-50') return p >= 30 && p <= 50;
@@ -87,14 +64,12 @@ const App: React.FC = () => {
                 return true;
             });
 
-            console.log(`Search complete. Found ${filtered.length} matching markets.`);
             setFilteredMarkets(filtered);
         } catch (err) {
             setError('데이터를 가져오는 중 오류가 발생했습니다.');
-            console.error('Search error:', err);
+            console.error(err);
         } finally {
             setLoading(false);
-            clearTimeout(timeoutId);
         }
     };
 
@@ -154,18 +129,19 @@ const App: React.FC = () => {
                         <a
                             key={market.id}
                             href={`https://polymarket.com/event/${market.eventSlug || market.slug}`}
-                            rel="noopener noreferrer"
                             className="market-card-link"
                         >
                             <div className="market-card">
                                 <img src={market.image} alt={market.question} className="market-image" />
                                 <div className="market-content">
-                                    <span className="category-badge">{market.category || 'MARKET'}</span>
+                                    {market.category && market.category !== 'MARKET' && (
+                                        <span className="category-badge">{market.category}</span>
+                                    )}
                                     <h3 className="market-question">{market.question}</h3>
                                     <div className="market-stats">
                                         <div className="price-container">
                                             <span className="price-label">기준 시간</span>
-                                            <span className="price-value" style={{ fontSize: '1.2rem' }}>
+                                            <span className="price-value" style={{ fontSize: '0.9rem' }}>
                                                 {timeFrames.find(tf => tf.value === timeFrame)?.label}
                                             </span>
                                         </div>
