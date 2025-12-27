@@ -105,8 +105,12 @@ export const fetchMarkets = async (category?: string): Promise<Market[]> => {
             });
         }
 
-        // Sort by volume for quality
-        markets.sort((a: any, b: any) => (b.volume24hr || 0) - (a.volume24hr || 0));
+        // Sort by volume for quality, using multiple volume fields as fallback
+        markets.sort((a: any, b: any) => {
+            const volA = a.volume24hr || a.volumeNum || a.volume || 0;
+            const volB = b.volume24hr || b.volumeNum || b.volume || 0;
+            return volB - volA;
+        });
 
         return markets;
     } catch (error) {

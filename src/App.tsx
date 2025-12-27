@@ -33,30 +33,59 @@ const App: React.FC = () => {
         try {
             const allMarkets = await fetchMarkets(category);
 
-            // Optimization: If timeframe is covered by Gamma API, use it directly to avoid CLOB API overhead
+            if (!allMarkets || allMarkets.length === 0) {
+                setFilteredMarkets([]);
+                return;
+            }
+
             const isGammaDataAvailable = ['1h', '24h', '1w'].includes(timeFrame);
 
-            // If CLOB API is needed (3h, 6h), limit to top markets to prevent rate limiting
-            const processingMarkets = isGammaDataAvailable ? allMarkets : allMarkets.slice(0, 50);
+            // Limit expensive CLOB calls to top markets
+            // Gamma is cheap, so we can check many more to find volatile ones
+            const limitCount = isGammaDataAvailable ? 300 : 50;
+            const processingMarkets = allMarkets.slice(0, limitCount);
 
             const processedMarkets = await Promise.all(
-                processingMarkets.map(async (m) => {
+                processingMarkets.map(async (m, index) => {
                     try {
-                        const tokenIds = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : (m.clobTokenIds || []);
+                        let tokenIds: string[] = [];
+                        if (typeof m.clobTokenIds === 'string') {
+                            try { tokenIds = JSON.parse(m.clobTokenIds); } catch { tokenIds = []; }
+                        } else {
+                            tokenIds = m.clobTokenIds || [];
+                        }
 
                         let maxAbsoluteChange = 0;
                         let displayChange = 0;
+                        let foundInGamma = false;
 
+                        // Try Gamma API first
                         if (isGammaDataAvailable) {
-                            // Use Gamma API pre-calculated fields
-                            if (timeFrame === '1h') displayChange = m.oneHourPriceChange ?? 0;
-                            else if (timeFrame === '24h') displayChange = m.oneDayPriceChange ?? 0;
-                            else if (timeFrame === '1w') displayChange = m.oneWeekPriceChange ?? 0;
-                            maxAbsoluteChange = Math.abs(displayChange);
-                        } else if (tokenIds.length > 0) {
-                            // Expensive CLOB API call for 3h/6h
+                            let gammaVal: number | undefined;
+                            if (timeFrame === '1h') gammaVal = m.oneHourPriceChange;
+                            else if (timeFrame === '24h') gammaVal = m.oneDayPriceChange;
+                            else if (timeFrame === '1w') gammaVal = m.oneWeekPriceChange;
+
+                            if (gammaVal !== undefined && gammaVal !== 0) {
+                                displayChange = gammaVal;
+                                maxAbsoluteChange = Math.abs(gammaVal);
+                                foundInGamma = true;
+                            }
+                        }
+
+                        // Fallback to CLOB if:
+                        // 1. Timeframe not in Gamma (3h, 6h)
+                        // 2. Gamma result was 0/missing AND it's a top market (top 30)
+                        const shouldTryClob = (!foundInGamma && index < 30 && tokenIds.length > 0) || (!isGammaDataAvailable && tokenIds.length > 0);
+
+                        if (shouldTryClob) {
+                            // Parallelize token checks for this market
                             const changes = await Promise.all(tokenIds.slice(0, 2).map(async (tid: string) => {
-                                return await fetchPriceChange(m.id, timeFrame, [tid]);
+                                try {
+                                    return await fetchPriceChange(m.id, timeFrame, [tid]);
+                                } catch {
+                                    return 0;
+                                }
                             }));
 
                             changes.forEach(c => {
@@ -68,9 +97,12 @@ const App: React.FC = () => {
                         }
 
                         const percentChange = maxAbsoluteChange * 100;
-                        return { ...m, calculatedChange: displayChange, percentChange: isNaN(percentChange) ? 0 : percentChange };
+                        return {
+                            ...m,
+                            calculatedChange: displayChange,
+                            percentChange: isNaN(percentChange) ? 0 : percentChange
+                        };
                     } catch (err) {
-                        console.error(`Error processing market ${m.id}:`, err);
                         return { ...m, calculatedChange: 0, percentChange: 0 };
                     }
                 })
